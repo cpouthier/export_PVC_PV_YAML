@@ -1,4 +1,4 @@
-# export_PVC_PV_YAML
+# WIP
 ## Step 1
 Add configmap to select proper storage class given a specified label
 
