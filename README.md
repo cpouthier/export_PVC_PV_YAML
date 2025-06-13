@@ -6,3 +6,5 @@ In this example, we set up the label zfs=true on our StorageClass named "zfs".
 
 `kubectl label storageclass zfs zfs=true --overwrite
 `
+
+Requires yq v4+ 
