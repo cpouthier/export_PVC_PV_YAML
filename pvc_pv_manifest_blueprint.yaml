@@ -22,11 +22,11 @@ actions:
               cd "$TMP_DIR"
 
               NAMESPACE="{{ .Namespace.Name }}"
-              CONFIGMAP_NS="kasten-io"
-              CONFIG_NAME="pvc-export-config"
+              CONFIGMAP_LABEL_NS="kasten-io"
+              CONFIGMAP_LABEL_NAME="label_configmap"
 
               # Retrieves the label selector from the ConfigMap
-              SC_LABEL_SELECTOR=$(kubectl get configmap "$CONFIG_NAME" -n "$CONFIGMAP_NS" -o jsonpath='{.data.storageClassLabel}')
+              SC_LABEL_SELECTOR=$(kubectl get configmap "$CONFIGMAP_LABEL_NAME" -n "$CONFIGMAP_LABEL_NS" -o jsonpath='{.data.storageClassLabel}')
 
               # Retrieves storage class names based on the label selector
               SC_NAMES=$(kubectl get storageclass -l "$SC_LABEL_SELECTOR" -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}')
@@ -39,8 +39,8 @@ actions:
                   for PVC in $PVC_LIST; do
                       PV_NAME=$(kubectl get pvc "$PVC" -n "$NAMESPACE" -o jsonpath='{.spec.volumeName}')
                       if [[ -n "$PV_NAME" ]]; then
-                          kubectl get pvc "$PVC" -n "$NAMESPACE" -o yaml > "pvc-${PVC}.yaml"
                           kubectl get pv "$PV_NAME" -o yaml > "pv-${PV_NAME}.yaml"
+                          kubectl get pvc "$PVC" -n "$NAMESPACE" -o yaml > "pvc-${PVC}.yaml"
                       fi
                   done
                done
