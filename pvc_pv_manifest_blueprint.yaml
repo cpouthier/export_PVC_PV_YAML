@@ -1,7 +1,7 @@
 apiVersion: cr.kanister.io/v1alpha1
 kind: Blueprint
 metadata:
-  name: pvc-pv-export-pre-snap-bp
+  name: pvc-pv-manifest-export-restore
   namespace: kasten-io
 actions:
   preSnapshot:
