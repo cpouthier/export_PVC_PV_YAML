@@ -65,8 +65,9 @@ Executed after a successful restore, this action:
 ## 🧱 Requirements
 
 - Kubernetes 1.21+
-- Access to Image (or you can build your own in your prefered repository): [`cpouthier/blueprint:latest`](https://hub.docker.com/r/cpouthier/blueprint)
+- Access to Image : [`cpouthier/blueprint:latest`](https://hub.docker.com/r/cpouthier/blueprint)
   > Includes `bash`, `kubectl`, `jq`, and `yq`
+
   > You can also create your own image using https://github.com/cpouthier/light_docker_image_tools
 
 ---
