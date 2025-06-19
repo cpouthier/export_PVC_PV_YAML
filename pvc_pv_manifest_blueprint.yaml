@@ -9,12 +9,12 @@ actions:
       - func: KubeTask
         name: exportPVCandPV
         args:
-          image: bitnami/kubectl:1.27
+          image: cpouthier/blueprint:latest
           command:
             - bash
             - -c
             - |
-              apt update && apt install -y jq yq || apk add jq yq
+              # apt update && apt install -y jq yq || apk add jq yq
               NS="{{ .Namespace.Name }}"
               APP_CM_NAME="cm-pvc-pv"
               CONFIGMAP_LABEL_NS="kasten-io"
@@ -53,12 +53,12 @@ actions:
       - func: KubeTask
         name: restorePVCandPV
         args:
-          image: bitnami/kubectl:1.27
+          image: cpouthier/blueprint:latest
           command:
             - bash
             - -c
             - |
-              apt update && apt install -y jq yq || apk add jq yq
+              # apt update && apt install -y jq yq || apk add jq yq
               NS="{{ .Namespace.Name }}"
               APP_CM_NAME="cm-pvc-pv"
               WORKDIR=$(mktemp -d)
