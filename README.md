@@ -13,7 +13,7 @@ The provided blueprint **is not supported by the editor and is supplied as-is**.
 This blueprint is intended for scenarios where:
 - You need to retain or migrate PVC/PV manifests during a Kasten K10 snapshot-based backup.
 - You use dynamic storage classes and want to preserve/restore claims manually.
-- Your storage class or CSI driver does not support full-volume restore.
+- Your storage class does not support snapshots and you backup it in another way.
 
 ---
 
@@ -67,6 +67,7 @@ Executed after a successful restore, this action:
 - Kubernetes 1.21+
 - Access to Image (or you can build your own in your prefered repository): [`cpouthier/blueprint:latest`](https://hub.docker.com/r/cpouthier/blueprint)
   > Includes `bash`, `kubectl`, `jq`, and `yq`
+  > You can also create your own image using https://github.com/cpouthier/light_docker_image_tools
 
 ---
 
