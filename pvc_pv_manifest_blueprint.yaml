@@ -21,11 +21,9 @@ actions:
               CONFIGMAP_LABEL_NAME="sc-label"
               TMP_DIR=$(mktemp -d)
 
-              echo "📥 Using target namespace: $NS"
-
               # Read label selector from configmap
               SC_LABEL=$(kubectl get configmap "$CONFIGMAP_LABEL_NAME" -n "$CONFIGMAP_LABEL_NS" -o jsonpath='{.data.storageClassLabel}')
-              [ -z "$SC_LABEL" ] && echo "❌ No storageClassLabel defined" && exit 1
+              [ -z "$SC_LABEL" ] && exit 1
 
               # Get SC names
               SC_NAMES=$(kubectl get storageclass -l "$SC_LABEL" -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}')
