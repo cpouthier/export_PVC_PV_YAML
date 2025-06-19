@@ -25,3 +25,4 @@ for pvcfile in "$WORKDIR"/pvc-*.yaml; do
   kubectl apply -f "$pvcfile"
 done
 
+kubectl delete configmap "$APP_CM_NAME" -n "$NS" --ignore-not-found
