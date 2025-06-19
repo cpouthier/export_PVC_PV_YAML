@@ -1,50 +1,54 @@
-kind: Blueprint
 apiVersion: cr.kanister.io/v1alpha1
+kind: Blueprint
 metadata:
-  name: pvc-pv-manifest-blueprint
+  name: pvc-pv-export-pre-snap-bp
   namespace: kasten-io
 actions:
-  pre-snapshot:
-    name: ""
-    kind: Namespace
+  preSnapshot:
     phases:
       - func: KubeTask
-        name: export-and-create-configmap
+        name: exportPVCandPV
         args:
-          image: bitnami/kubectl
+          image: bitnami/kubectl:1.27  
           command:
-            - /bin/sh
+            - bash
             - -c
             - |
-              set -e
-              # Setting up temporary directory
-              TMP_DIR=$(mktemp -d)
-              cd "$TMP_DIR"
-
-              NAMESPACE="{{ .Namespace.Name }}"
+              apt update && apt install -y jq yq || apk add jq yq
+              NS="{{ .Namespace.Name }}"
+              APP_CM_NAME="cm-pvc-pv"
               CONFIGMAP_LABEL_NS="kasten-io"
-              CONFIGMAP_LABEL_NAME="label_configmap"
+              CONFIGMAP_LABEL_NAME="sc-label"
+              TMP_DIR=$(mktemp -d)
 
-              # Retrieves the label selector from the ConfigMap
-              SC_LABEL_SELECTOR=$(kubectl get configmap "$CONFIGMAP_LABEL_NAME" -n "$CONFIGMAP_LABEL_NS" -o jsonpath='{.data.storageClassLabel}')
+              echo "📥 Using target namespace: $NS"
 
-              # Retrieves storage class names based on the label selector
-              SC_NAMES=$(kubectl get storageclass -l "$SC_LABEL_SELECTOR" -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}')
+              # Read label selector from configmap
+              SC_LABEL=$(kubectl get configmap "$CONFIGMAP_LABEL_NAME" -n "$CONFIGMAP_LABEL_NS" -o jsonpath='{.data.storageClassLabel}')
+              [ -z "$SC_LABEL" ] && echo "❌ No storageClassLabel defined" && exit 1
 
-              # Retrieves the PVCs list for each identified StorageClass
+              # Get SC names
+              SC_NAMES=$(kubectl get storageclass -l "$SC_LABEL" -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}')
+
               for SC in $SC_NAMES; do
-                PVC_LIST=$(kubectl get pvc -n "$NAMESPACE" -o json | jq -r --arg sc "$SC" '.items[] | select(.spec.storageClassName==$sc) | .metadata.name')
+                PVC_LIST=$(kubectl get pvc -n "$NS" -o json | jq -r --arg sc "$SC" '.items[] | select(.spec.storageClassName==$sc) | .metadata.name')
+                for PVC in $PVC_LIST; do
+                  PV_NAME=$(kubectl get pvc "$PVC" -n "$NS" -o jsonpath='{.spec.volumeName}')
+                  [ -z "$PV_NAME" ] && continue
 
-              # Retrieves the PVs associated with the PVCs and exports PVC and PV manifests as yaml files
-                  for PVC in $PVC_LIST; do
-                      PV_NAME=$(kubectl get pvc "$PVC" -n "$NAMESPACE" -o jsonpath='{.spec.volumeName}')
-                      if [[ -n "$PV_NAME" ]]; then
-                          kubectl get pv "$PV_NAME" -o yaml > "pv-${PV_NAME}.yaml"
-                          kubectl get pvc "$PVC" -n "$NAMESPACE" -o yaml > "pvc-${PVC}.yaml"
-                      fi
-                  done
-               done
+                  kubectl get pvc "$PVC" -n "$NS" -o yaml > "$TMP_DIR/pvc-${PVC}.yaml"
+                  kubectl get pv "$PV_NAME" -o yaml > "$TMP_DIR/pv-${PV_NAME}.yaml"
+                done
+              done
 
-              # Creates a ConfigMap with the exported PVC and PV manifests
-              CM_NAME="pvc-pv-export"
-              kubectl create configmap "$CM_NAME" -n "$NAMESPACE" --from-file=. --dry-run=client -o yaml | kubectl apply -f -
+              for file in "$TMP_DIR"/*.yaml; do
+                kind=$(yq e '.kind' "$file")
+                if [ "$kind" = "PersistentVolume" ]; then
+                  yq e 'del(.metadata.annotations, .metadata.finalizers, .metadata.managedFields, .metadata.uid, .metadata.resourceVersion, .metadata.creationTimestamp, .status, .spec.claimRef.uid, .spec.claimRef.resourceVersion)' -i "$file"
+                elif [ "$kind" = "PersistentVolumeClaim" ]; then
+                  yq e 'del(.metadata.annotations, .metadata.finalizers, .metadata.managedFields, .metadata.uid, .metadata.resourceVersion, .metadata.creationTimestamp, .status)' -i "$file"
+                fi
+              done
+
+              kubectl delete configmap "$APP_CM_NAME" -n "$NS" --ignore-not-found
+              kubectl create configmap "$APP_CM_NAME" -n "$NS" --from-file="$TMP_DIR" --dry-run=client -o yaml | kubectl apply -f -

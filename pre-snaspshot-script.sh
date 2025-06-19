@@ -28,9 +28,9 @@ SC_NAMES=$(kubectl get storageclass -l "$SC_LABEL_SELECTOR" -o jsonpath='{range 
 
 # Prepare temporary working directory
 WORKDIR=$(mktemp -d)
-echo "📦 Temporary export dir: $WORKDIR"
 
-# 7. Loop through each StorageClass and export + clean YAMLs
+
+# Loop through each StorageClass and export + clean YAMLs
 for SC in $SC_NAMES; do
     PVC_LIST=$(kubectl get pvc -n "$APP_NAMESPACE" -o json | jq -r --arg sc "$SC" '.items[] | select(.spec.storageClassName==$sc) | .metadata.name')
 
