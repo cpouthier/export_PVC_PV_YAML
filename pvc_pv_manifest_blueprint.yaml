@@ -12,10 +12,14 @@ actions:
           image: cpouthier/blueprint:latest
           command:
             - bash
+            - -x
+            - -o
+            - errexit
+            - -o
+            - pipefail
             - -c
             - |
-              # apt update && apt install -y jq yq || apk add jq yq
-              NS="{{ .Namespace.Name }}"
+              APP_NAMESPACE="{{ .Namespace.Name }}"
               APP_CM_NAME="cm-pvc-pv"
               CONFIGMAP_LABEL_NS="kasten-io"
               CONFIGMAP_LABEL_NAME="sc-label"
@@ -27,12 +31,12 @@ actions:
               SC_NAMES=$(kubectl get storageclass -l "$SC_LABEL" -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}')
 
               for SC in $SC_NAMES; do
-                PVC_LIST=$(kubectl get pvc -n "$NS" -o json | jq -r --arg sc "$SC" '.items[] | select(.spec.storageClassName==$sc) | .metadata.name')
+                PVC_LIST=$(kubectl get pvc -n "$APP_NAMESPACE" -o json | jq -r --arg sc "$SC" '.items[] | select(.spec.storageClassName==$sc) | .metadata.name')
                 for PVC in $PVC_LIST; do
-                  PV_NAME=$(kubectl get pvc "$PVC" -n "$NS" -o jsonpath='{.spec.volumeName}')
+                  PV_NAME=$(kubectl get pvc "$PVC" -n "$APP_NAMESPACE" -o jsonpath='{.spec.volumeName}')
                   [ -z "$PV_NAME" ] && continue
 
-                  kubectl get pvc "$PVC" -n "$NS" -o yaml > "$TMP_DIR/pvc-${PVC}.yaml"
+                  kubectl get pvc "$PVC" -n "$APP_NAMESPACE" -o yaml > "$TMP_DIR/pvc-${PVC}.yaml"
                   kubectl get pv "$PV_NAME" -o yaml > "$TMP_DIR/pv-${PV_NAME}.yaml"
                 done
               done
@@ -46,8 +50,9 @@ actions:
                 fi
               done
 
-              kubectl delete configmap "$APP_CM_NAME" -n "$NS" --ignore-not-found
-              kubectl create configmap "$APP_CM_NAME" -n "$NS" --from-file="$TMP_DIR" --dry-run=client -o yaml | kubectl apply -f -
+              kubectl delete configmap "$APP_CM_NAME" -n "$APP_NAMESPACE" --ignore-not-found
+              kubectl create configmap "$APP_CM_NAME" -n "$APP_NAMESPACE" --from-file="$TMP_DIR" --dry-run=client -o yaml | kubectl apply -f -
+
   postRestore: #Restore the PVC and PV manifests after restore after Restore On Success
     phases:
       - func: KubeTask
@@ -56,15 +61,19 @@ actions:
           image: cpouthier/blueprint:latest
           command:
             - bash
+            - -x
+            - -o
+            - errexit
+            - -o
+            - pipefail
             - -c
             - |
-              # apt update && apt install -y jq yq || apk add jq yq
-              NS="{{ .Namespace.Name }}"
+              APP_NAMESPACE="{{ .Namespace.Name }}"
               APP_CM_NAME="cm-pvc-pv"
               WORKDIR=$(mktemp -d)
 
               # Extract YAMLs from ConfigMap
-              kubectl get configmap "$APP_CM_NAME" -n "$NS" -o json \
+              kubectl get configmap "$APP_CM_NAME" -n "$APP_NAMESPACE" -o json \
                 | jq -r '.data | to_entries[] | @base64' \
                 | while read -r entry; do
                     name=$(echo "$entry" | base64 --decode | jq -r '.key')
@@ -72,12 +81,26 @@ actions:
                     echo "$content" > "$WORKDIR/$name"
                   done
 
+              # Apply PVs (only if they don't already exist)
               for pvfile in "$WORKDIR"/pv-*.yaml; do
+                PV_NAME=$(yq e '.metadata.name' "$pvfile")
+
+                if kubectl get pv "$PV_NAME" &>/dev/null; then
+                  echo "PV $PV_NAME already exists. Exiting to prevent overwrite."
+                  exit 1
+                fi
+
                 kubectl apply -f "$pvfile"
               done
 
+              # Apply PVCs
               for pvcfile in "$WORKDIR"/pvc-*.yaml; do
                 kubectl apply -f "$pvcfile"
               done
 
-              kubectl delete configmap "$APP_CM_NAME" -n "$NS" --ignore-not-found
+              # Clean up
+              kubectl delete configmap "$APP_CM_NAME" -n "$APP_NAMESPACE" --ignore-not-found
+
+
+
+

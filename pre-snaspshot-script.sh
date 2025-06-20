@@ -8,7 +8,7 @@ metadata:
   name: sc-label
   namespace: kasten-io
 data:
-  storageClassLabel: "zfs=true" 
+  storageClassLabel: "nfs=true" 
 EOF
 
 # Initialize some variables to be modified as per your environment
