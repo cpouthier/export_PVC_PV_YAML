@@ -17,7 +17,7 @@ This blueprint is intended for scenarios where:
 
 ---
 
-## 🛠️ Actions
+## 🛠️ Actions defined in the blueprint
 
 ### `preSnapshot`
 
@@ -36,11 +36,16 @@ Executed after a successful restore, this action:
 
 ---
 
-## 🔁 How It Works
+## 🧱 Requirements
 
-1. **Label-based selection**: The storage class to include is (are) identified using a label defined in a ConfigMap in kasten-io namespace. In the example below we labelled the storage class with "zfs=true" and created the corresponding ConfigMap:
+- Kubernetes 1.21+
+- Access to Image : [`cpouthier/blueprint:latest`](https://hub.docker.com/r/cpouthier/blueprint)
+  > Includes `bash`, `kubectl`, `jq`, and `yq`
 
-```sh
+  > You can also create your own image using https://github.com/cpouthier/light_docker_image_tools
+- The storage class to include is (are) identified using a label defined in a ConfigMap in kasten-io namespace. In the example below we labelled the storage class with "zfs=true" and created the corresponding ConfigMap:
+
+```console
 kubectl label storageclass <your-storage-class-name> zfs=true
 ```
 
@@ -53,7 +58,7 @@ kubectl label storageclass <your-storage-class-name> zfs=true
    data:
      storageClassLabel: "zfs=true"
    ```
-   Remember that you'll need to exclude from the bakcup policy PVCs belonging to this storage class.
+   **Remember that you'll need to exclude from the bakcup policy PVCs belonging to this storage class.**
 
 2. **Export logic**:
    - Extract PVC/PV YAMLs to a temporary directory.
@@ -63,19 +68,53 @@ kubectl label storageclass <your-storage-class-name> zfs=true
 3. **Restore logic**:
    - Decode ConfigMap content back into YAML files.
    - Reapply them in order (PVs first, then PVCs).
+   - After restore, the blueprint automatically deletes the intermediate ConfigMap (`cm-pvc-pv`) into the application namespace.
 
 ---
 
-## 🧱 Requirements
+## 🔁 How to use this blueprint (example)
 
-- Kubernetes 1.21+
-- Access to Image : [`cpouthier/blueprint:latest`](https://hub.docker.com/r/cpouthier/blueprint)
-  > Includes `bash`, `kubectl`, `jq`, and `yq`
+In the example below we assume you have an NFS storage class exporting on 127.0.0.1
 
-  > You can also create your own image using https://github.com/cpouthier/light_docker_image_tools
+1. **Create a basic application deployment**:
+
+Create the NFS persistent volume:
+
+```console
+Create PV
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: nfs-pv
+spec:
+  capacity:
+    storage: 10Gi
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: nfs
+  mountOptions:
+    - hard
+    - nfsvers=4.1
+  nfs:
+    path: /data/nfs
+    server: 127.0.0.1
+EOF
+```
+
+Create the "test-data" namespace:
+
+```console
+kubectl create namespace test-data --dry-run=client -o yaml | kubectl apply -f -
+```
+
 
 ---
+
+
 
 ## 📂 Cleanup
 
-After restore, the blueprint automatically deletes the intermediate ConfigMap (`cm-pvc-pv`) into the application namespace.
+
