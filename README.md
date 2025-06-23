@@ -211,20 +211,56 @@ Create the blueprint
 
 3. Create a backup policy
 
-Create the policy
-Add blueprint pointing to the pre-snapshot action
-Exclude PVC from backup
-Run the policy
+Create the backup policy for the "test-data" namespace where your application is working and exclude the persistent volume claim from the backup:
 
-4. delete test-data namespace
-delete NFS PV (if existing the restore policy will fail to avoid overwrite)
+![alt text](https://raw.githubusercontent.com/cpouthier/export_PVC_PV_YAML/main/img/newpolicy.png)
 
-5. restore 
-2 steps
-Restore first only the cm-pvc-pv config map
-Restore the deployment
+Add a pre-snasphot action hook and select the blueprint and the preSnasphot action:
 
-6. Validate restore
-connect to the pod in test-data namespace and check files in /data
+![alt text](https://raw.githubusercontent.com/cpouthier/export_PVC_PV_YAML/main/img/presnapshotaction.png)
+
+Finally click on "Submit" and run the policy.
+
+4. Simulate a crash
+
+Delete the test-data namespace:
+
+```console
+kubectl delete ns test-data
+```
+
+As the PersistentVolume is not namespaced, you'll need to delete it also otherwise, if it exists, the blueprint will stop to prevent overwrite and the restore action will fail. 
+
+```console
+kubectl delete pv nfs-pv
+```
+
+5. Restore 
+
+Restoration is done in 2 steps as Veeam Kasten allows granular restore.
+
+- (Step1) First of all select the restore point from which you want to restore.
+
+- Once selected, on the Optional Restore settings, select on "After - On Success", select the blueprint and and the posrRestore action:
+
+![alt text](https://raw.githubusercontent.com/cpouthier/export_PVC_PV_YAML/main/img/postrestoreaction.png)
+
+- Restore only the ConfigMap which has been created during backup (deselect all artifacts and select only "cm-pvc-pv" ConfigMap):
+
+![alt text](https://raw.githubusercontent.com/cpouthier/export_PVC_PV_YAML/main/img/restoreconfigmap.png)
+
+- Click on "Restore" and Kasten will restore the ConfigMap and then the script will extract PersistantVolume and PersistantVolumeClaim from it and apply them.
+
+- (Step 2) Select again the restore point in Veeam Kasten GUI (should be ideally the one used previously)
+
+- Deselect all artifacts and select only the deployment and click on "Restore":
+
+![alt text](https://raw.githubusercontent.com/cpouthier/export_PVC_PV_YAML/main/img/restoredeployment.png)
+
+6. Validate your restore
+
+To validate if the restore has been donne properly, connect to the pod in test-data namespace and check files in /data. You should normally see something like this:
+
+![alt text](https://raw.githubusercontent.com/cpouthier/export_PVC_PV_YAML/main/img/results.png)
 
 ---
