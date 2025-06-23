@@ -110,11 +110,109 @@ Create the "test-data" namespace:
 kubectl create namespace test-data --dry-run=client -o yaml | kubectl apply -f -
 ```
 
+Create the persistent volume claim:
+
+```console
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nfs-pvc
+  namespace: test-data
+spec:
+  storageClassName: nfs
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 10Gi
+EOF
+```
+
+Create the basic-app deployment:
+
+```console
+cat <<EOF | kubectl apply -f -
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: basic-app
+  namespace: test-data
+  labels:
+    app: basic-app
+spec:
+  strategy:
+    type: Recreate
+  replicas: 1
+  selector:
+    matchLabels:
+      app: basic-app
+  template:
+    metadata:
+      labels:
+        app: basic-app
+    spec:
+      containers:
+        - name: basic-app-container
+          image: alpine:latest
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: 100m
+          command: ["sh", "-c", "sleep infinity"]
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: nfs-pvc
+EOF
+```
+
+Wait for pod to be ready and create random files with random data onto the persistant volume claim on /data:
+
+```console
+# Wait for the pod to be Ready
+echo "⏳ Waiting for pod to be Ready..."
+kubectl wait --for=condition=Ready -n test-data pod -l app=basic-app --timeout=60s
+
+# Get pod name
+POD_NAME=$(kubectl get pod -n test-data -l app=basic-app -o jsonpath='{.items[0].metadata.name}')
+
+# Create 10 random files in /data
+echo "📄 Creating 10 random files in /data on pod $POD_NAME..."
+for i in $(seq 1 10); do
+  kubectl exec -n test-data "$POD_NAME" -- sh -c "head -c 1024 </dev/urandom > /data/random-file-$i.txt"
+done
+
+echo "✅ Done: test-data basic app ready and 10 files created in /data directory which points on a NFS persistent volume."
+```
+
+2. **Set up Veeam Kasten**:
+
+Label the NFS storage class with "nfs=true"
+
+Create the configmap in kasten-io namespace with the label selector "nfs=true"
+
+Create the blueprint
+
+3. Create a backup policy
+
+Create the policy
+Add blueprint pointing to the pre-snapshot action
+Exclude PVC from backup
+Run the policy
+
+4. delete test-data namespace
+delete NFS PV (if existing the restore policy will fail to avoid overwrite)
+
+5. restore 
+2 steps
+Restore first only the cm-pvc-pv config map
+Restore the deployment
+
+6. Validate restore
+connect to the pod in test-data namespace and check files in /data
 
 ---
-
-
-
-## 📂 Cleanup
-
-
