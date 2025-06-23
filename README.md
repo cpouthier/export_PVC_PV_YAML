@@ -43,11 +43,7 @@ Executed after a successful restore, this action:
   > Includes `bash`, `kubectl`, `jq`, and `yq`
 
   > You can also create your own image using https://github.com/cpouthier/light_docker_image_tools
-- The storage class to include is (are) identified using a label defined in a ConfigMap in kasten-io namespace. In the example below we labelled the storage class with "zfs=true" and created the corresponding ConfigMap:
-
-```console
-kubectl label storageclass <your-storage-class-name> zfs=true
-```
+- The storage class to include is (are) identified using a label defined in a ConfigMap in kasten-io namespace. 
 
    ```yaml
    apiVersion: v1
@@ -56,7 +52,7 @@ kubectl label storageclass <your-storage-class-name> zfs=true
      name: sc-label
      namespace: kasten-io
    data:
-     storageClassLabel: "zfs=true"
+     storageClassLabel: "<your label>"
    ```
    **Remember that you'll need to exclude from the bakcup policy PVCs belonging to this storage class.**
 
@@ -191,9 +187,25 @@ echo "✅ Done: test-data basic app ready and 10 files created in /data director
 
 2. **Set up Veeam Kasten**:
 
-Label the NFS storage class with "nfs=true"
+Label the NFS storage class (named nfs in the example below) with "nfs=true"
+
+```console
+kubectl label storageclass nfs nfs=true
+```
 
 Create the configmap in kasten-io namespace with the label selector "nfs=true"
+
+```console
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sc-label
+  namespace: kasten-io
+data:
+  storageClassLabel: "nfs=true"
+EOF
+```
 
 Create the blueprint
 
