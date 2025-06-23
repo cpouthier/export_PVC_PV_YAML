@@ -38,7 +38,11 @@ Executed after a successful restore, this action:
 
 ## 🔁 How It Works
 
-1. **Label-based selection**: The storage classes to include are identified using a label defined in this ConfigMap. In the example below we labelled the storage class with "zfs=true":
+1. **Label-based selection**: The storage class to include is (are) identified using a label defined in a ConfigMap in kasten-io namespace. In the example below we labelled the storage class with "zfs=true" and created the corresponding ConfigMap:
+
+```sh
+kubectl label storageclass <your-storage-class-name> zfs=true
+```
 
    ```yaml
    apiVersion: v1
