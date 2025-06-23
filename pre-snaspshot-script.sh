@@ -11,41 +11,63 @@ data:
   storageClassLabel: "nfs=true" 
 EOF
 
-# Initialize some variables to be modified as per your environment
+#!/bin/bash
+set -euo pipefail
+
+clear
+
+# ✅ Configuration
 APP_NAMESPACE=test-data
 APP_CM_NAME="cm-pvc-pv"
 CONFIGMAP_LABEL_NS="kasten-io"
 CONFIGMAP_LABEL_NAME="sc-label"
+TMP_DIR=$(mktemp -d)
 
-# Deletes existing ConfigMap in the application namespace if it exists
+# 🧹 Clean existing ConfigMap
 kubectl delete configmap "$APP_CM_NAME" -n "$APP_NAMESPACE" --ignore-not-found
 
-# Retrieves the label selector from the ConfigMap in kasten-io namespace
-SC_LABEL_SELECTOR=$(kubectl get configmap "$CONFIGMAP_LABEL_NAME" -n "$CONFIGMAP_LABEL_NS" -o jsonpath='{.data.storageClassLabel}')
+# 📥 Retrieve StorageClass label selector
+SC_LABEL=$(kubectl get configmap "$CONFIGMAP_LABEL_NAME" -n "$CONFIGMAP_LABEL_NS" -o jsonpath='{.data.storageClassLabel}')
+if [ -z "$SC_LABEL" ]; then
+  echo "❌ Error: No 'storageClassLabel' found in ConfigMap '$CONFIGMAP_LABEL_NAME' in namespace '$CONFIGMAP_LABEL_NS'."
+  exit 1
+fi
 
-# Retrieves all storage class names based on the label selector
-SC_NAMES=$(kubectl get storageclass -l "$SC_LABEL_SELECTOR" -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}')
+# 📋 Retrieve list of storage classes matching the label
+SC_NAMES=$(kubectl get storageclass -l "$SC_LABEL" -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}')
+if [ -z "$SC_NAMES" ]; then
+  echo "❌ Error: No StorageClass found matching label selector '$SC_LABEL'."
+  exit 1
+fi
 
-# Prepare temporary working directory
-WORKDIR=$(mktemp -d)
-
-
-# Loop through each StorageClass and export + clean YAMLs
+# 🔁 Loop through each StorageClass and export YAMLs
 for SC in $SC_NAMES; do
+    echo "🔍 Processing StorageClass: $SC"
+
     PVC_LIST=$(kubectl get pvc -n "$APP_NAMESPACE" -o json | jq -r --arg sc "$SC" '.items[] | select(.spec.storageClassName==$sc) | .metadata.name')
 
+    if [ -z "$PVC_LIST" ]; then
+        echo "❌ Error: No PVCs found in namespace '$APP_NAMESPACE' using StorageClass '$SC'"
+        exit 1
+    fi
+
     for PVC in $PVC_LIST; do
+        echo "📦 Found PVC: $PVC"
         PV_NAME=$(kubectl get pvc "$PVC" -n "$APP_NAMESPACE" -o jsonpath='{.spec.volumeName}')
-        
-        if [[ -n "$PV_NAME" ]]; then
-            kubectl get pvc "$PVC" -n "$APP_NAMESPACE" -o yaml > "$WORKDIR/pvc-${PVC}.yaml"
-            kubectl get pv "$PV_NAME" -o yaml > "$WORKDIR/pv-${PV_NAME}.yaml"
+
+        if [ -z "$PV_NAME" ]; then
+            echo "❌ Error: No bound PV found for PVC '$PVC' in namespace '$APP_NAMESPACE'"
+            exit 1
         fi
+
+        echo "📄 Exporting YAML for PVC '$PVC' and PV '$PV_NAME'"
+        kubectl get pvc "$PVC" -n "$APP_NAMESPACE" -o yaml > "$TMP_DIR/pvc-${PVC}.yaml"
+        kubectl get pv "$PV_NAME" -o yaml > "$TMP_DIR/pv-${PV_NAME}.yaml"
     done
 done
 
-# Clean YAMLs with yq
-for file in "$WORKDIR"/*.yaml; do
+# 🧼 Clean YAML files with yq
+for file in "$TMP_DIR"/*.yaml; do
   kind=$(yq e '.kind' "$file")
   
   if [[ "$kind" == "PersistentVolume" ]]; then
@@ -56,4 +78,4 @@ for file in "$WORKDIR"/*.yaml; do
 done
 
 # Create ConfigMap from cleaned files
-kubectl create configmap "$APP_CM_NAME" -n "$APP_NAMESPACE" --from-file="$WORKDIR" --dry-run=client -o yaml | kubectl apply -f -
+kubectl create configmap "$APP_CM_NAME" -n "$APP_NAMESPACE" --from-file="$TMP_DIR" --dry-run=client -o yaml | kubectl apply -f -

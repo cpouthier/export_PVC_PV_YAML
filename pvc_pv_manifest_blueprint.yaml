@@ -15,7 +15,6 @@ actions:
             - -x
             - -o
             - errexit
-            - -o
             - pipefail
             - -c
             - |
@@ -53,7 +52,7 @@ actions:
               kubectl delete configmap "$APP_CM_NAME" -n "$APP_NAMESPACE" --ignore-not-found
               kubectl create configmap "$APP_CM_NAME" -n "$APP_NAMESPACE" --from-file="$TMP_DIR" --dry-run=client -o yaml | kubectl apply -f -
 
-  postRestore: #Restore the PVC and PV manifests after restore after Restore On Success
+  postRestore: #Restore the PVC and PV manifests after  Restore On Success
     phases:
       - func: KubeTask
         name: restorePVCandPV
@@ -76,8 +75,8 @@ actions:
               kubectl get configmap "$APP_CM_NAME" -n "$APP_NAMESPACE" -o json \
                 | jq -r '.data | to_entries[] | @base64' \
                 | while read -r entry; do
-                    name=$(echo "$entry" | base64 --decode | jq -r '.key')
-                    content=$(echo "$entry" | base64 --decode | jq -r '.value')
+                    name=$(echo "$entry" | base64 -d | jq -r '.key')
+                    content=$(echo "$entry" | base64 -d | jq -r '.value')
                     echo "$content" > "$WORKDIR/$name"
                   done
 
