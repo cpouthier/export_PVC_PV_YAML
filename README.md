@@ -185,15 +185,15 @@ done
 echo "✅ Done: test-data basic app ready and 10 files created in /data directory which points on a NFS persistent volume."
 ```
 
-2. **Set up Veeam Kasten**:
+2. **Set up environment and Veeam Kasten**:
 
-Label the NFS storage class (named nfs in the example below) with "nfs=true"
+Label the NFS storage class (named nfs in the example below) with "nfs=true":
 
 ```console
 kubectl label storageclass nfs nfs=true
 ```
 
-Create the configmap in kasten-io namespace with the label selector "nfs=true"
+Create the configmap in kasten-io namespace with the label selector "nfs=true":
 
 ```console
 cat <<EOF | kubectl apply -f -
@@ -207,7 +207,12 @@ data:
 EOF
 ```
 
-Create the blueprint
+Create the blueprint:
+
+```console
+kubectl apply -f https://raw.githubusercontent.com/cpouthier/export_PVC_PV_YAML/main/pvc_pv_manifest_blueprint.yaml
+```
+
 
 3. Create a backup policy
 
