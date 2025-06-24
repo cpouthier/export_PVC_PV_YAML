@@ -162,7 +162,6 @@ EOF
 Wait for pod to be ready and create random files with random data onto the persistant volume claim on /data:
 
 ```console
-# Wait for the pod to be Ready
 echo "⏳ Waiting for pod to be Ready..."
 kubectl wait --for=condition=Ready -n test-data pod -l app=basic-app --timeout=60s
 
@@ -174,8 +173,6 @@ echo "📄 Creating 10 random files in /data on pod $POD_NAME..."
 for i in $(seq 1 10); do
   kubectl exec -n test-data "$POD_NAME" -- sh -c "head -c 1024 </dev/urandom > /data/random-file-$i.txt"
 done
-
-echo "✅ Done: test-data basic app ready and 10 files created in /data directory which points on a NFS persistent volume."
 ```
 
 2. **Set up environment and Veeam Kasten**:
