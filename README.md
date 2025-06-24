@@ -162,14 +162,12 @@ EOF
 Wait for pod to be ready and create random files with random data onto the persistant volume claim on /data:
 
 ```console
-echo "⏳ Waiting for pod to be Ready..."
 kubectl wait --for=condition=Ready -n test-data pod -l app=basic-app --timeout=60s
 
 # Get pod name
 POD_NAME=$(kubectl get pod -n test-data -l app=basic-app -o jsonpath='{.items[0].metadata.name}')
 
 # Create 10 random files in /data
-echo "📄 Creating 10 random files in /data on pod $POD_NAME..."
 for i in $(seq 1 10); do
   kubectl exec -n test-data "$POD_NAME" -- sh -c "head -c 1024 </dev/urandom > /data/random-file-$i.txt"
 done
