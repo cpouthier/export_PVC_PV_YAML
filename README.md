@@ -1,6 +1,8 @@
 # Blueprint: pvc-pv-manifest-export-restore
 
-This Kanister blueprint enables the **backup and restoration of PersistentVolumeClaim (PVC)** and **PersistentVolume (PV)** manifests via ConfigMaps. It is designed to work with Veeam Kasten and can be used to preserve Kubernetes storage object definitions during application backup and restore operations.
+## 🧩 Use Case
+
+This Kanister blueprint enables the **backup and restoration of PersistentVolumeClaim (PVC)** and **PersistentVolume (PV)** manifests only via ConfigMaps. It is designed to work with Veeam Kasten and can be used to preserve Kubernetes storage object definitions during application backup and restore operations.
 
 **WARNING**
 
@@ -8,20 +10,11 @@ The provided blueprint **is not supported by the editor and is supplied as-is**.
 
 ---
 
-## 🧩 Use Case
-
-This blueprint is intended for scenarios where:
-- You need to retain or migrate PVC/PV manifests during a Kasten K10 snapshot-based backup.
-- You use dynamic storage classes and want to preserve/restore claims manually.
-- Your storage class does not support snapshots and you backup it in another way.
-
----
-
 ## 🛠️ Actions defined in the blueprint
 
 ### `preSnapshot`
 
-Executed before a backup, this action:
+Executed before a snapshot, this action:
 - Selects PVCs using a label defined in a ConfigMap (`sc-label`) located in the `kasten-io` namespace.
 - Exports all matching PVC and PV manifests in the application namespace.
 - Sanitizes the manifests (removes metadata such as UIDs, timestamps, managedFields, etc.).
