@@ -2,9 +2,11 @@
 
 This Kanister blueprint enables the **backup and restoration of PersistentVolumeClaim (PVC)** and **PersistentVolume (PV)** manifests via ConfigMaps. It is designed to work with Veeam Kasten and can be used to preserve Kubernetes storage object definitions during application backup and restore operations.
 
-**WARNING**
+> ⚠️ **WARNING**  
+> The provided blueprint is **not supported by the editor** and is supplied *as-is*.  
+> Functionality, compatibility, and correctness are **not guaranteed**.  
+> Please **verify and adjust** as needed **before use**.
 
-The provided blueprint **is not supported by the editor and is supplied as-is**. Functionality, compatibility, and correctness are not guaranteed. Please verify and adjust as needed before use.
 
 ---
 
