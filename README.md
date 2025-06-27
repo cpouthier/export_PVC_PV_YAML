@@ -1,6 +1,8 @@
 # Blueprint: pvc-pv-manifest-export-restore
 
-This Kanister blueprint enables the **backup and restoration of PersistentVolumeClaim (PVC)** and **PersistentVolume (PV)** manifests via ConfigMaps. It is designed to work with Veeam Kasten and can be used to preserve Kubernetes storage object definitions during application backup and restore operations.
+## 🧩 Use Case
+
+This Kanister blueprint enables the **backup and restoration of PersistentVolumeClaim (PVC)** and **PersistentVolume (PV)** manifests only via ConfigMaps. It is designed to work with Veeam Kasten and can be used to preserve Kubernetes storage object definitions during application backup and restore operations.
 
 > ⚠️ **WARNING**  
 > The provided blueprint is **not supported by the editor** and is supplied *as-is*.  
@@ -10,20 +12,11 @@ This Kanister blueprint enables the **backup and restoration of PersistentVolume
 
 ---
 
-## 🧩 Use Case
-
-This blueprint is intended for scenarios where:
-- You need to retain or migrate PVC/PV manifests during a Kasten K10 snapshot-based backup.
-- You use dynamic storage classes and want to preserve/restore claims manually.
-- Your storage class does not support snapshots and you backup it in another way.
-
----
-
 ## 🛠️ Actions defined in the blueprint
 
 ### `preSnapshot`
 
-Executed before a backup, this action:
+Executed before a snapshot, this action:
 - Selects PVCs using a label defined in a ConfigMap (`sc-label`) located in the `kasten-io` namespace.
 - Exports all matching PVC and PV manifests in the application namespace.
 - Sanitizes the manifests (removes metadata such as UIDs, timestamps, managedFields, etc.).
@@ -171,31 +164,26 @@ EOF
 Wait for pod to be ready and create random files with random data onto the persistant volume claim on /data:
 
 ```console
-# Wait for the pod to be Ready
-echo "⏳ Waiting for pod to be Ready..."
 kubectl wait --for=condition=Ready -n test-data pod -l app=basic-app --timeout=60s
 
 # Get pod name
 POD_NAME=$(kubectl get pod -n test-data -l app=basic-app -o jsonpath='{.items[0].metadata.name}')
 
 # Create 10 random files in /data
-echo "📄 Creating 10 random files in /data on pod $POD_NAME..."
 for i in $(seq 1 10); do
   kubectl exec -n test-data "$POD_NAME" -- sh -c "head -c 1024 </dev/urandom > /data/random-file-$i.txt"
 done
-
-echo "✅ Done: test-data basic app ready and 10 files created in /data directory which points on a NFS persistent volume."
 ```
 
-2. **Set up Veeam Kasten**:
+2. **Set up environment and Veeam Kasten**:
 
-Label the NFS storage class (named nfs in the example below) with "nfs=true"
+Label the NFS storage class (named nfs in the example below) with "nfs=true":
 
 ```console
 kubectl label storageclass nfs nfs=true
 ```
 
-Create the configmap in kasten-io namespace with the label selector "nfs=true"
+Create the configmap in kasten-io namespace with the label selector "nfs=true":
 
 ```console
 cat <<EOF | kubectl apply -f -
@@ -209,24 +197,65 @@ data:
 EOF
 ```
 
-Create the blueprint
+Create the blueprint:
+
+```console
+kubectl apply -f https://raw.githubusercontent.com/cpouthier/export_PVC_PV_YAML/main/pvc_pv_manifest_blueprint.yaml
+```
+
 
 3. Create a backup policy
 
-Create the policy
-Add blueprint pointing to the pre-snapshot action
-Exclude PVC from backup
-Run the policy
+Create the backup policy for the "test-data" namespace where your application is working and exclude the persistent volume claim from the backup:
 
-4. delete test-data namespace
-delete NFS PV (if existing the restore policy will fail to avoid overwrite)
+![alt text](https://raw.githubusercontent.com/cpouthier/export_PVC_PV_YAML/main/img/newpolicy.png)
 
-5. restore 
-2 steps
-Restore first only the cm-pvc-pv config map
-Restore the deployment
+Add a pre-snasphot action hook and select the blueprint and the preSnasphot action:
 
-6. Validate restore
-connect to the pod in test-data namespace and check files in /data
+![alt text](https://raw.githubusercontent.com/cpouthier/export_PVC_PV_YAML/main/img/presnapshotaction.png)
+
+Finally click on "Submit" and run the policy.
+
+4. Simulate a crash
+
+Delete the test-data namespace:
+
+```console
+kubectl delete ns test-data
+```
+
+As the PersistentVolume is not namespaced, you'll need to delete it also otherwise, if it exists, the blueprint will stop to prevent overwrite and the restore action will fail. 
+
+```console
+kubectl delete pv nfs-pv
+```
+
+5. Restore 
+
+Restoration is done in 2 steps as Veeam Kasten allows granular restore.
+
+- (Step1) First of all select the restore point from which you want to restore.
+
+- Once selected, on the Optional Restore settings, select on "After - On Success", select the blueprint and and the posrRestore action:
+
+![alt text](https://raw.githubusercontent.com/cpouthier/export_PVC_PV_YAML/main/img/postrestoreaction.png)
+
+- Restore only the ConfigMap which has been created during backup (deselect all artifacts and select only "cm-pvc-pv" ConfigMap):
+
+![alt text](https://raw.githubusercontent.com/cpouthier/export_PVC_PV_YAML/main/img/restoreconfigmap.png)
+
+- Click on "Restore" and Kasten will restore the ConfigMap and then the script will extract PersistantVolume and PersistantVolumeClaim from it and apply them.
+
+- (Step 2) Select again the restore point in Veeam Kasten GUI (should be ideally the one used previously)
+
+- Deselect all artifacts and select only the deployment and click on "Restore":
+
+![alt text](https://raw.githubusercontent.com/cpouthier/export_PVC_PV_YAML/main/img/restoredeployment.png)
+
+6. Validate your restore
+
+To validate if the restore has been donne properly, connect to the pod in test-data namespace and check files in /data. You should normally see something like this:
+
+![alt text](https://raw.githubusercontent.com/cpouthier/export_PVC_PV_YAML/main/img/results.png)
 
 ---
